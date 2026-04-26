@@ -799,6 +799,54 @@
     color: var(--text-ghost);
   }
 
+  /* Search */
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 160px;
+    max-width: 280px;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 13px; height: 13px;
+    stroke: var(--text-faint);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 10px 7px 30px;
+    border-radius: 6px;
+    font-family: 'IBM Plex Sans KR', sans-serif;
+    font-size: 12px;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: rgba(251,191,36,0.5);
+  }
+  .search-input::placeholder { color: var(--text-ghost); }
+  .search-result-info {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-left: 4px;
+  }
+  .coin-tag.search-match {
+    border-color: rgba(251,191,36,0.7);
+    color: var(--accent);
+    background: rgba(251,191,36,0.08);
+  }
+
   /* Utility */
   .hidden { display: none !important; }
   .section { margin-bottom: 40px; }
@@ -920,6 +968,11 @@
         <span class="entries-count" id="entriesCount">(0)</span>
       </div>
       <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="search-input" id="searchInput" placeholder="코인 이름 검색..." autocomplete="off" />
+        </div>
+        <span class="search-result-info hidden" id="searchResultInfo"></span>
         <div class="price-status" id="priceStatus" style="display: none;">
           <div class="price-dot" id="priceDot"></div>
           <span id="priceStatusText">OFF</span>
@@ -972,6 +1025,7 @@ let entries = {};
 let selectedDate = null;
 let compareDate = null;
 let streakWindow = 4;
+let searchQuery = '';
 
 // 시세 관련
 let priceEnabled = false;
@@ -1169,9 +1223,26 @@ function renderEntries() {
   const list = document.getElementById('entriesList');
   const countEl = document.getElementById('entriesCount');
   const hintEl = document.getElementById('compareHint');
-  const dates = Object.keys(entries).sort((a, b) => b.localeCompare(a));
+  const resultInfoEl = document.getElementById('searchResultInfo');
+  const allDates = Object.keys(entries).sort((a, b) => b.localeCompare(a));
 
-  countEl.textContent = `(${dates.length})`;
+  // 검색 필터링
+  const q = searchQuery.trim();
+  const dates = q
+    ? allDates.filter(date =>
+        entries[date].coins.some(c => c.includes(q))
+      )
+    : allDates;
+
+  // 검색 결과 안내
+  if (q) {
+    resultInfoEl.textContent = `${dates.length}/${allDates.length}일`;
+    resultInfoEl.classList.remove('hidden');
+  } else {
+    resultInfoEl.classList.add('hidden');
+  }
+
+  countEl.textContent = `(${allDates.length})`;
 
   if (dates.length >= 2 && !compareDate) {
     hintEl.textContent = selectedDate ? '비교할 다른 날짜 선택 →' : '카드 선택 → 비교할 다른 날짜 선택';
@@ -1179,11 +1250,21 @@ function renderEntries() {
     hintEl.textContent = '';
   }
 
-  if (dates.length === 0) {
+  if (allDates.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
         <p>아직 기록이 없어요</p>
         <p class="sub">위에 붙여넣고 저장 버튼을 눌러보세요</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (dates.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <p>검색 결과가 없어요</p>
+        <p class="sub">"${escapeHtml(q)}" 코인이 포함된 날짜가 없습니다</p>
       </div>
     `;
     return;
@@ -1205,6 +1286,7 @@ function renderEntries() {
     }
 
     const coinsHtml = entry.coins.map(c => {
+      const isSearchMatch = q && c.includes(q);
       let priceHtml = '';
       let extraClass = '';
       let clickable = '';
@@ -1234,7 +1316,7 @@ function renderEntries() {
           clickable = ` onclick="openMatchModal('${c.replace(/'/g, "\\'")}')" title="클릭하여 매칭 변경"`;
         }
       }
-      return `<span class="coin-tag${extraClass}"${clickable}>${escapeHtml(c)}${priceHtml}</span>`;
+      return `<span class="coin-tag${extraClass}${isSearchMatch ? ' search-match' : ''}"${clickable}>${escapeHtml(c)}${priceHtml}</span>`;
     }).join('');
     const badges = (isA ? '<span class="badge a">A</span>' : '') + (isB ? '<span class="badge b">B</span>' : '');
 
@@ -1774,6 +1856,10 @@ document.getElementById('saveBtn').addEventListener('click', () => {
 });
 
 document.getElementById('inputArea').addEventListener('input', renderPreview);
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  renderEntries();
+});
 document.getElementById('closeCompare').addEventListener('click', () => {
   selectedDate = null;
   compareDate = null;

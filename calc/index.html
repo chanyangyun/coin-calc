@@ -405,21 +405,31 @@
       </div>
       <div class="input-group">
         <label>투자 원금</label>
-        <div class="input-row"><input type="number" id="invest" placeholder="0" inputmode="decimal"><span class="unit">원</span></div>
+        <div class="input-row"><input type="number" id="invest" placeholder="0" inputmode="decimal" oninput="autoCalcRecord()"><span class="unit">원</span></div>
       </div>
       <div class="input-group">
-        <label>매도금액 <span style="color:var(--muted);font-size:11px">(입력 시 수익금 자동계산)</span></label>
-        <div class="input-row"><input type="number" id="sellAmt" placeholder="0" inputmode="decimal" oninput="autoCalcProfit()"><span class="unit">원</span></div>
+        <label>매수가 <span style="color:var(--muted);font-size:11px">(코인 1개당 산 가격)</span></label>
+        <div class="input-row"><input type="number" id="recBuyPrice" placeholder="0" inputmode="decimal" oninput="autoCalcRecord()"><span class="unit">원</span></div>
       </div>
       <div class="input-group">
-        <label>수익금액 <span style="color:var(--muted);font-size:11px">(직접 입력도 가능)</span></label>
-        <div class="input-row" id="profitRow"><input type="number" id="recProfit" placeholder="매도금액 입력 시 자동계산" inputmode="decimal"><span class="unit">원</span></div>
+        <label>매도가 <span style="color:var(--muted);font-size:11px">(코인 1개당 판 가격)</span></label>
+        <div class="input-row"><input type="number" id="recSellPrice" placeholder="0" inputmode="decimal" oninput="autoCalcRecord()"><span class="unit">원</span></div>
+      </div>
+      <!-- 자동계산 결과 미리보기 -->
+      <div id="recPreview" style="display:none;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:14px;margin-bottom:12px;">
+        <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:10px;">📊 수수료 반영 자동계산</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:var(--card2);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:4px">수익률</div><div style="font-size:15px;font-weight:700" id="previewRate">-</div></div>
+          <div style="background:var(--card2);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:4px">수익금</div><div style="font-size:15px;font-weight:700" id="previewProfit">-</div></div>
+          <div style="background:var(--card2);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:4px">매도금액</div><div style="font-size:13px;font-weight:700;color:var(--accent)" id="previewSellAmt">-</div></div>
+          <div style="background:var(--card2);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:4px">수수료 합계</div><div style="font-size:13px;font-weight:700;color:var(--red)" id="previewFee">-</div></div>
+        </div>
       </div>
       <div class="input-group">
         <label>메모 (선택)</label>
         <div class="input-row"><input type="text" id="memo" placeholder="예) 단타, 장투"></div>
       </div>
-      <p class="error-msg" id="errMsg">코인명, 투자금, 수익금을 입력해주세요.</p>
+      <p class="error-msg" id="errMsg">코인명, 투자금, 매수가, 매도가를 모두 입력해주세요.</p>
       <button class="btn btn-orange" onclick="addRecord()">기록 추가하기</button>
     </div>
 
@@ -707,17 +717,31 @@
   }
 
   // 탭3 거래기록
-  function autoCalcProfit() {
+  function autoCalcRecord() {
     var invest = parseFloat(document.getElementById('invest').value);
-    var sell = parseFloat(document.getElementById('sellAmt').value);
-    var profitRow = document.getElementById('profitRow');
-    if (invest > 0 && sell > 0) {
-      document.getElementById('recProfit').value = Math.round(sell - invest);
-      profitRow.style.borderColor = 'rgba(0,255,136,0.4)';
-      document.getElementById('recProfit').style.color = 'var(--accent2)';
+    var buy = parseFloat(document.getElementById('recBuyPrice').value);
+    var sell = parseFloat(document.getElementById('recSellPrice').value);
+    var preview = document.getElementById('recPreview');
+    if (invest > 0 && buy > 0 && sell > 0) {
+      var FEE = FEE_UPBIT;
+      var realBuy = buy * (1 + FEE);
+      var realSell = sell * (1 - FEE);
+      var profitRate = ((realSell - realBuy) / realBuy) * 100;
+      var coins = invest / realBuy;
+      var proceeds = coins * realSell;
+      var profit = proceeds - invest;
+      var totalFee = invest * FEE + (coins * sell) * FEE;
+      var rateEl = document.getElementById('previewRate');
+      var profitEl = document.getElementById('previewProfit');
+      rateEl.textContent = (profitRate >= 0 ? '+' : '') + profitRate.toFixed(4) + '%';
+      rateEl.style.color = profitRate >= 0 ? 'var(--accent2)' : 'var(--red)';
+      profitEl.textContent = (profit >= 0 ? '+' : '') + fmt(Math.round(profit)) + '원';
+      profitEl.style.color = profit >= 0 ? 'var(--accent2)' : 'var(--red)';
+      document.getElementById('previewSellAmt').textContent = fmt(Math.round(coins * sell)) + '원';
+      document.getElementById('previewFee').textContent = '약 ' + fmt(Math.round(totalFee)) + '원';
+      preview.style.display = 'block';
     } else {
-      profitRow.style.borderColor = '';
-      document.getElementById('recProfit').style.color = '';
+      preview.style.display = 'none';
     }
   }
 
@@ -776,7 +800,9 @@
       html += '<div class="record-grid">';
       html += '<div class="record-cell"><div class="rc-label">투자금</div><div class="rc-val">' + fmt(r.invest) + '원</div></div>';
       html += '<div class="record-cell"><div class="rc-label">수익금</div><div class="rc-val ' + (isPos?'pos':'neg') + '">' + (isPos?'+':'') + fmt(r.profit) + '원</div></div>';
-      html += '<div class="record-cell"><div class="rc-label">수익률</div><div class="rc-val ' + (isPos?'pos':'neg') + '">' + (isPos?'+':'') + rate + '%</div></div>';
+      html += '<div class="record-cell"><div class="rc-label">수익률(수수료반영)</div><div class="rc-val ' + (isPos?'pos':'neg') + '">' + (isPos?'+':'') + (r.profitRate !== undefined ? r.profitRate.toFixed(2) : rate) + '%</div></div>';
+      if (r.buyPrice) html += '<div class="record-cell"><div class="rc-label">매수가</div><div class="rc-val">' + fmtD(r.buyPrice) + '원</div></div>';
+      if (r.sellPrice) html += '<div class="record-cell"><div class="rc-label">매도가</div><div class="rc-val">' + fmtD(r.sellPrice) + '원</div></div>';
       html += '</div></div>';
     }
     list.innerHTML = html;
@@ -785,18 +811,35 @@
   function addRecord() {
     var coin = document.getElementById('coinName').value.trim();
     var invest = parseFloat(document.getElementById('invest').value);
-    var profit = parseFloat(document.getElementById('recProfit').value);
+    var buyPrice = parseFloat(document.getElementById('recBuyPrice').value);
+    var sellPrice = parseFloat(document.getElementById('recSellPrice').value);
     var memo = document.getElementById('memo').value.trim();
     var errEl = document.getElementById('errMsg');
-    if (!coin || isNaN(invest) || isNaN(profit) || invest <= 0) { errEl.style.display = 'block'; return; }
+    if (!coin || isNaN(invest) || isNaN(buyPrice) || isNaN(sellPrice) || invest <= 0 || buyPrice <= 0 || sellPrice <= 0) {
+      errEl.style.display = 'block'; return;
+    }
     errEl.style.display = 'none';
+    // 수수료 반영 계산
+    var FEE = FEE_UPBIT;
+    var realBuy = buyPrice * (1 + FEE);
+    var realSell = sellPrice * (1 - FEE);
+    var profitRate = ((realSell - realBuy) / realBuy) * 100;
+    var coins = invest / realBuy;
+    var proceeds = coins * realSell;
+    var profit = proceeds - invest;
     var records = loadRecords();
     var now = new Date();
-    records.push({ id: Date.now(), coin: coin, invest: invest, profit: profit, memo: memo, date: (now.getMonth()+1) + '/' + now.getDate() });
+    records.push({
+      id: Date.now(), coin: coin,
+      invest: invest, profit: Math.round(profit),
+      buyPrice: buyPrice, sellPrice: sellPrice,
+      profitRate: profitRate,
+      memo: memo,
+      date: (now.getMonth()+1) + '/' + now.getDate()
+    });
     saveRecords(records);
-    ['coinName','invest','sellAmt','recProfit','memo'].forEach(function(id) { document.getElementById(id).value = ''; });
-    document.getElementById('profitRow').style.borderColor = '';
-    document.getElementById('recProfit').style.color = '';
+    ['coinName','invest','recBuyPrice','recSellPrice','memo'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('recPreview').style.display = 'none';
     renderRecords();
   }
 
@@ -815,49 +858,76 @@
   }
 
   // ===== 탭6: 계산기 =====
-  var calcPrev = '';
+  var calcPrev = '';   // 실제 숫자 문자열 (콤마 없음)
   var calcOp = '';
   var calcNew = true;
+  var calcRaw = '0';   // 현재 입력 중인 숫자 (콤마 없는 원본)
+
+  function calcFmt(raw) {
+    // 음수 부호 분리
+    var neg = raw.startsWith('-');
+    var abs = neg ? raw.slice(1) : raw;
+    var parts = abs.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (neg ? '-' : '') + parts.join('.');
+  }
 
   function calcInput(val) {
     var res = document.getElementById('calcResult');
     var expr = document.getElementById('calcExpr');
-    var cur = res.textContent;
+
     if (val === 'AC') {
-      calcPrev = ''; calcOp = ''; calcNew = true;
+      calcPrev = ''; calcOp = ''; calcNew = true; calcRaw = '0';
       res.textContent = '0'; expr.textContent = ''; return;
     }
     if (val === '+/-') {
-      if (cur !== '0') res.textContent = String(parseFloat(cur) * -1); return;
+      if (calcRaw !== '0') {
+        calcRaw = calcRaw.startsWith('-') ? calcRaw.slice(1) : '-' + calcRaw;
+        res.textContent = calcFmt(calcRaw);
+      }
+      return;
     }
     if (val === '%') {
-      res.textContent = String(parseFloat(cur) / 100); return;
+      var pct = parseFloat(calcRaw) / 100;
+      calcRaw = String(pct);
+      res.textContent = calcFmt(calcRaw);
+      return;
     }
     if (['+','-','*','/'].includes(val)) {
-      calcPrev = cur; calcOp = val; calcNew = true;
+      calcPrev = calcRaw; calcOp = val; calcNew = true;
       var opDisp = val === '*' ? '×' : val === '/' ? '÷' : val;
-      expr.textContent = cur + ' ' + opDisp;
+      expr.textContent = calcFmt(calcRaw) + ' ' + opDisp;
       return;
     }
     if (val === '=') {
       if (!calcOp || !calcPrev) return;
-      var a = parseFloat(calcPrev), b = parseFloat(cur), result;
+      var a = parseFloat(calcPrev), b = parseFloat(calcRaw), result;
       if (calcOp === '+') result = a + b;
       else if (calcOp === '-') result = a - b;
       else if (calcOp === '*') result = a * b;
-      else if (calcOp === '/') result = b !== 0 ? a / b : 'Error';
+      else if (calcOp === '/') result = b !== 0 ? a / b : null;
       var opD = calcOp === '*' ? '×' : calcOp === '/' ? '÷' : calcOp;
-      expr.textContent = calcPrev + ' ' + opD + ' ' + cur + ' =';
-      res.textContent = typeof result === 'number' ? (Number.isInteger(result) ? result : parseFloat(result.toFixed(8))) : result;
+      expr.textContent = calcFmt(calcPrev) + ' ' + opD + ' ' + calcFmt(calcRaw) + ' =';
+      if (result === null) {
+        res.textContent = 'Error'; calcRaw = '0';
+      } else {
+        calcRaw = String(Number.isInteger(result) ? result : parseFloat(result.toFixed(8)));
+        res.textContent = calcFmt(calcRaw);
+      }
       calcOp = ''; calcPrev = ''; calcNew = true; return;
     }
     if (val === '.') {
-      if (calcNew) { res.textContent = '0.'; calcNew = false; return; }
-      if (!cur.includes('.')) res.textContent = cur + '.';
+      if (calcNew) { calcRaw = '0.'; calcNew = false; res.textContent = '0.'; return; }
+      if (!calcRaw.includes('.')) { calcRaw += '.'; res.textContent = calcFmt(calcRaw) + '.'; }
+      // 소수점 끝에 붙은 경우 그대로 유지
+      if (calcRaw.endsWith('.')) res.textContent = calcFmt(calcRaw.slice(0,-1)) + '.';
       return;
     }
-    if (calcNew) { res.textContent = val; calcNew = false; }
-    else { res.textContent = cur === '0' ? val : cur + val; }
+    // 숫자 입력
+    if (calcNew) { calcRaw = val; calcNew = false; }
+    else { calcRaw = calcRaw === '0' ? val : calcRaw + val; }
+    // 소수점 입력 중이면 뒤에 아직 숫자가 오고 있을 수 있으므로 그대로 표시
+    res.textContent = calcFmt(calcRaw);
   }
 
   // ===== 백업/복원 =====
